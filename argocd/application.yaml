@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     # >>> EDIT THIS to your own git repo URL after you push this folder <<<
-    repoURL: https://github.com/<you>/cnpg-gitops-drift-demo.git
+    repoURL: https://github.com/DeepKrish25/rancher-demo.git
     targetRevision: main
     path: charts/pg
     helm:
