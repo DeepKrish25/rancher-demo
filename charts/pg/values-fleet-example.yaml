@@ -8,7 +8,7 @@ instances: 1
 storageSize: 1Gi
 
 bootstrap:
-  mode: initdb
+  mode: recovery
   recovery:
     source: original
     # The Fleet test must never read the demo-pg archive.
