@@ -1,0 +1,15 @@
+# Apply this manifest manually on the EC2 only after this repository is pushed.
+# It makes Fleet reconcile only fleet/fleet-demo-pg, not the whole repository.
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: fleet-demo-pg
+  namespace: fleet-local
+spec:
+  repo: https://github.com/DeepKrish25/rancher-demo.git
+  branch: main
+  paths:
+    - fleet/fleet-demo-pg
+  targets:
+    - name: local
+      clusterName: local

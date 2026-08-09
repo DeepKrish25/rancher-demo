@@ -1,0 +1,8 @@
+# This bundle is deliberately scoped to the distinct CNPG Cluster named
+# fleet-demo-pg. It never references the ArgoCD-managed demo-pg Cluster.
+defaultNamespace: default
+helm:
+  chart: ../../charts/pg
+  releaseName: fleet-demo-pg
+  valuesFiles:
+    - ../../charts/pg/values-fleet-example.yaml

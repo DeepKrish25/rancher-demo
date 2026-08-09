@@ -98,6 +98,20 @@ undesired state where Git says `initdb` but the live Cluster says `recovery`.
 `ignoreDifferences`/Fleet `comparePatches` workaround. They are disabled by
 default and are not the recovery solution used by this chart.
 
+## Separate Rancher/Fleet recovery test
+
+The repository also contains an isolated Fleet experiment. It has strict
+ownership boundaries: ArgoCD manages only `demo-pg`; Fleet manages only
+`fleet-demo-pg`. The controllers must never manage the same CNPG `Cluster`.
+The Fleet values use distinct MinIO archive identities, so this test cannot
+overwrite or recover from the existing `demo-pg` backup archive.
+
+Follow the manual EC2-only procedure in
+[docs/fleet-recovery-test.md](docs/fleet-recovery-test.md). It includes the
+Rancher/Fleet installation and read-only verification scripts, and records the
+final desired-versus-live `spec.bootstrap` observation without adding Fleet
+drift workarounds.
+
 ## Repository layout
 
 ```text
@@ -108,6 +122,11 @@ scripts/04-install-argocd.sh         ArgoCD installation
 scripts/05-create-minio-secret.sh    Object-store credentials
 scripts/06-reproduce-drift.sh        Existing manual drift reproduction
 scripts/07-apply-fix.sh              Existing workaround comparison
+scripts/08-install-rancher-fleet.sh  Manual EC2 Rancher/Fleet installation
+scripts/09-verify-rancher-fleet.sh   Read-only Rancher/Fleet verification
 charts/pg/                           CNPG Cluster and ScheduledBackup chart
+charts/pg/values-fleet-example.yaml  Isolated Fleet Cluster values
 argocd/application.yaml              The single GitOps Application
+fleet/                               Fleet bundle and manual GitRepo registration
+docs/fleet-recovery-test.md          Fleet recovery test procedure
 ```
