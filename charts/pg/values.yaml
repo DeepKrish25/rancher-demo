@@ -9,17 +9,17 @@ storageSize: 1Gi
 bootstrap:
   # Valid rendering states: initdb, recovery, existing.
   # `existing` omits spec.bootstrap after a successful recovery.
-  mode: initdb
+  mode: recovery
   recovery:
     # Name of the externalClusters entry from which CNPG recovers.
     source: original
-    # Archive identity of the source Cluster in object storage.
     serverName: demo-pg
 
 backup:
   destinationPath: s3://pg-backups/
   endpointURL: http://minio.minio.svc.cluster.local:9000
   secretName: minio-creds
+  serverName: demo-pg-recovered
   # Used for recovery mode so future backups do not write to the source archive.
   serverName: demo-pg-recovered
 
