@@ -13,6 +13,10 @@ spec:
     barmanObjectStore:
       destinationPath: {{ .Values.backup.destinationPath }}
       endpointURL: {{ .Values.backup.endpointURL }}
+{{- if eq .Values.bootstrap.mode "recovery" }}
+      # A recovered Cluster writes new backups under its own archive identity.
+      serverName: {{ required "backup.serverName is required when bootstrap.mode=recovery" .Values.backup.serverName }}
+{{- end }}
       s3Credentials:
         accessKeyId:
           name: {{ .Values.backup.secretName }}
@@ -42,6 +46,7 @@ spec:
     barmanObjectStore:
       destinationPath: {{ .Values.backup.destinationPath }}
       endpointURL: {{ .Values.backup.endpointURL }}
+      serverName: {{ required "bootstrap.recovery.serverName is required when bootstrap.mode=recovery" .Values.bootstrap.recovery.serverName }}
       s3Credentials:
         accessKeyId:
           name: {{ .Values.backup.secretName }}

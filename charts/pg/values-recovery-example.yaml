@@ -18,11 +18,15 @@ bootstrap:
   mode: recovery
   recovery:
     source: original
+    # Existing archive to restore from.
+    serverName: demo-pg
 
 backup:
   destinationPath: s3://pg-backups/
   endpointURL: http://minio.minio.svc.cluster.local:9000
   secretName: minio-creds
+  # New archive identity for backups made after recovery.
+  serverName: demo-pg-recovered
 
 scheduledBackup:
   enabled: true
