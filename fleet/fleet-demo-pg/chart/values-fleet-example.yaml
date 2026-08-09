@@ -10,7 +10,7 @@ storageSize: 1Gi
 bootstrap:
   mode: initdb
   recovery:
-    source: original
+    source: recovery
     # The Fleet test must never read the demo-pg archive.
     serverName: fleet-demo-pg
 
