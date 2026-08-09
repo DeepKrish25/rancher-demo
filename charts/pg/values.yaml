@@ -1,0 +1,21 @@
+# Default state committed to git — same as your real cluster.yaml.
+# A fresh cluster always bootstraps via initdb.
+name: demo-pg
+namespace: default
+
+instances: 1
+storageSize: 1Gi
+
+bootstrap:
+  mode: initdb        # <-- change to "recovery" to restore via git (the fix)
+  recovery:
+    backupName: ""     # set when mode=recovery, e.g. "demo-pg-recovery"
+
+backup:
+  destinationPath: s3://pg-backups/
+  endpointURL: http://minio.minio.svc.cluster.local:9000
+  secretName: minio-creds
+
+scheduledBackup:
+  enabled: true
+  schedule: "0 0 2 * * *"   # 2am daily, CNPG cron format (with seconds)

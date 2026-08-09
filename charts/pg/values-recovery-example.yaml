@@ -1,0 +1,29 @@
+# Example of the git-driven restore (your Option 2, per-cluster override).
+# In real usage this would be a values file scoped to ONE cluster
+# (e.g. via Fleet targetCustomizations or an ArgoCD Application parameter
+# override) — NOT a separate branch/bundle targeting the same object.
+#
+# Demo usage:
+#   helm upgrade --install demo-pg charts/pg -f charts/pg/values-recovery-example.yaml
+# or point ArgoCD's Application.spec.source.helm.valueFiles at this file
+# for the one affected cluster only.
+
+name: demo-pg
+namespace: default
+
+instances: 1
+storageSize: 1Gi
+
+bootstrap:
+  mode: recovery
+  recovery:
+    backupName: "demo-pg-recovery"
+
+backup:
+  destinationPath: s3://pg-backups/
+  endpointURL: http://minio.minio.svc.cluster.local:9000
+  secretName: minio-creds
+
+scheduledBackup:
+  enabled: true
+  schedule: "0 0 2 * * *"

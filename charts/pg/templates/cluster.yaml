@@ -1,0 +1,50 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  instances: {{ .Values.instances }}
+
+  storage:
+    size: {{ .Values.storageSize }}
+
+  backup:
+    barmanObjectStore:
+      destinationPath: {{ .Values.backup.destinationPath }}
+      endpointURL: {{ .Values.backup.endpointURL }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ .Values.backup.secretName }}
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ .Values.backup.secretName }}
+          key: ACCESS_SECRET_KEY
+    retentionPolicy: "7d"
+
+  # ---- THIS is the field that causes the drift ----
+  # CNPG only reads spec.bootstrap ONCE, at object-creation time.
+  # After that it's inert — but Fleet/ArgoCD keep diffing it forever
+  # against whatever git says, which is how you get stuck "Modified".
+  bootstrap:
+{{- if eq .Values.bootstrap.mode "recovery" }}
+    recovery:
+      source: original
+{{- else }}
+    initdb: {}
+{{- end }}
+
+{{- if eq .Values.bootstrap.mode "recovery" }}
+  externalClusters:
+  - name: original
+    barmanObjectStore:
+      destinationPath: {{ .Values.backup.destinationPath }}
+      endpointURL: {{ .Values.backup.endpointURL }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ .Values.backup.secretName }}
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ .Values.backup.secretName }}
+          key: ACCESS_SECRET_KEY
+{{- end }}

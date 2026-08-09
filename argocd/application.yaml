@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-pg
+  namespace: argocd
+spec:
+  project: default
+  source:
+    # >>> EDIT THIS to your own git repo URL after you push this folder <<<
+    repoURL: https://github.com/<you>/cnpg-gitops-drift-demo.git
+    targetRevision: main
+    path: charts/pg
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+  # ---- STEP 6 FIX: uncomment this block after reproducing the drift ----
+  # ignoreDifferences:
+  #   - group: postgresql.cnpg.io
+  #     kind: Cluster
+  #     jsonPointers:
+  #       - /spec/bootstrap

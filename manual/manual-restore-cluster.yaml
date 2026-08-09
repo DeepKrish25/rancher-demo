@@ -1,0 +1,43 @@
+# This mimics step 3 of your CURRENT manual process:
+# "Created YAML file for db restoration and executed manually."
+#
+# Notice spec.bootstrap.recovery here vs spec.bootstrap.initdb in
+# charts/pg/templates/cluster.yaml (rendered from git). That mismatch
+# is exactly what produces the stuck "Modified" drift once the bundle
+# is unpaused.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: demo-pg
+  namespace: default
+spec:
+  instances: 1
+  storage:
+    size: 1Gi
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://pg-backups/
+      endpointURL: http://minio.minio.svc.cluster.local:9000
+      s3Credentials:
+        accessKeyId:
+          name: minio-creds
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: minio-creds
+          key: ACCESS_SECRET_KEY
+    retentionPolicy: "7d"
+  bootstrap:
+    recovery:
+      source: original
+  externalClusters:
+  - name: original
+    barmanObjectStore:
+      destinationPath: s3://pg-backups/
+      endpointURL: http://minio.minio.svc.cluster.local:9000
+      s3Credentials:
+        accessKeyId:
+          name: minio-creds
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: minio-creds
+          key: ACCESS_SECRET_KEY
