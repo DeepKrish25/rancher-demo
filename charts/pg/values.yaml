@@ -9,7 +9,7 @@ storageSize: 1Gi
 bootstrap:
   # Valid rendering states: initdb, recovery, existing.
   # `existing` omits spec.bootstrap after a successful recovery.
-  mode: recovery
+  mode: existing
   recovery:
     # Name of the externalClusters entry from which CNPG recovers.
     source: original
