@@ -1,0 +1,26 @@
+# Isolated Fleet experiment. This is intentionally independent of demo-pg.
+# Change only bootstrap.mode between initdb, recovery, and existing as the
+# documented manual test progresses.
+name: fleet-demo-pg
+namespace: default
+
+instances: 1
+storageSize: 1Gi
+
+bootstrap:
+  mode: initdb
+  recovery:
+    source: original
+    # The Fleet test must never read the demo-pg archive.
+    serverName: fleet-demo-pg
+
+backup:
+  destinationPath: s3://pg-backups/
+  endpointURL: http://minio.minio.svc.cluster.local:9000
+  secretName: minio-creds
+  # Backups after recovery use a separate archive identity.
+  serverName: fleet-demo-pg-recovered
+
+scheduledBackup:
+  enabled: true
+  schedule: "0 0 2 * * *"

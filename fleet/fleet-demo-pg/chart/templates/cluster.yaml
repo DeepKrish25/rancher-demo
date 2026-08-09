@@ -1,0 +1,57 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  instances: {{ .Values.instances }}
+
+  storage:
+    size: {{ .Values.storageSize }}
+
+  backup:
+    barmanObjectStore:
+      destinationPath: {{ .Values.backup.destinationPath }}
+      endpointURL: {{ .Values.backup.endpointURL }}
+{{- if eq .Values.bootstrap.mode "recovery" }}
+      # A recovered Cluster writes new backups under its own archive identity.
+      serverName: {{ required "backup.serverName is required when bootstrap.mode=recovery" .Values.backup.serverName }}
+{{- end }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ .Values.backup.secretName }}
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ .Values.backup.secretName }}
+          key: ACCESS_SECRET_KEY
+    retentionPolicy: "7d"
+
+  # CNPG reads spec.bootstrap only when the Cluster is created.  `existing`
+  # intentionally renders no bootstrap field: it represents a Cluster that
+  # has already completed its bootstrap, not a CNPG bootstrap method.
+{{- if eq .Values.bootstrap.mode "initdb" }}
+  bootstrap:
+    initdb: {}
+{{- else if eq .Values.bootstrap.mode "recovery" }}
+  bootstrap:
+    recovery:
+      source: {{ required "bootstrap.recovery.source is required when bootstrap.mode=recovery" .Values.bootstrap.recovery.source | quote }}
+{{- else if ne .Values.bootstrap.mode "existing" }}
+{{- fail "bootstrap.mode must be one of: initdb, recovery, existing" }}
+{{- end }}
+
+{{- if eq .Values.bootstrap.mode "recovery" }}
+  externalClusters:
+  - name: {{ required "bootstrap.recovery.source is required when bootstrap.mode=recovery" .Values.bootstrap.recovery.source | quote }}
+    barmanObjectStore:
+      destinationPath: {{ .Values.backup.destinationPath }}
+      endpointURL: {{ .Values.backup.endpointURL }}
+      serverName: {{ required "bootstrap.recovery.serverName is required when bootstrap.mode=recovery" .Values.bootstrap.recovery.serverName }}
+      s3Credentials:
+        accessKeyId:
+          name: {{ .Values.backup.secretName }}
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: {{ .Values.backup.secretName }}
+          key: ACCESS_SECRET_KEY
+{{- end }}
