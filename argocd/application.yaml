@@ -22,9 +22,8 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-  # ---- STEP 6 FIX: uncomment this block after reproducing the drift ----
-  # ignoreDifferences:
-  #   - group: postgresql.cnpg.io
-  #     kind: Cluster
-  #     jsonPointers:
-  #       - /spec/bootstrap
+    ignoreDifferences:
+     - group: postgresql.cnpg.io
+       kind: Cluster
+       jsonPointers:
+         - /spec/bootstrap
