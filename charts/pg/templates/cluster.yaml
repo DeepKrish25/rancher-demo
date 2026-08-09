@@ -22,21 +22,23 @@ spec:
           key: ACCESS_SECRET_KEY
     retentionPolicy: "7d"
 
-  # ---- THIS is the field that causes the drift ----
-  # CNPG only reads spec.bootstrap ONCE, at object-creation time.
-  # After that it's inert — but Fleet/ArgoCD keep diffing it forever
-  # against whatever git says, which is how you get stuck "Modified".
+  # CNPG reads spec.bootstrap only when the Cluster is created.  `existing`
+  # intentionally renders no bootstrap field: it represents a Cluster that
+  # has already completed its bootstrap, not a CNPG bootstrap method.
+{{- if eq .Values.bootstrap.mode "initdb" }}
   bootstrap:
-{{- if eq .Values.bootstrap.mode "recovery" }}
-    recovery:
-      source: original
-{{- else }}
     initdb: {}
+{{- else if eq .Values.bootstrap.mode "recovery" }}
+  bootstrap:
+    recovery:
+      source: {{ required "bootstrap.recovery.source is required when bootstrap.mode=recovery" .Values.bootstrap.recovery.source | quote }}
+{{- else if ne .Values.bootstrap.mode "existing" }}
+{{- fail "bootstrap.mode must be one of: initdb, recovery, existing" }}
 {{- end }}
 
 {{- if eq .Values.bootstrap.mode "recovery" }}
   externalClusters:
-  - name: original
+  - name: {{ required "bootstrap.recovery.source is required when bootstrap.mode=recovery" .Values.bootstrap.recovery.source | quote }}
     barmanObjectStore:
       destinationPath: {{ .Values.backup.destinationPath }}
       endpointURL: {{ .Values.backup.endpointURL }}

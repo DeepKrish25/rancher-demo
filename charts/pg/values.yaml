@@ -7,9 +7,12 @@ instances: 1
 storageSize: 1Gi
 
 bootstrap:
-  mode: initdb        # <-- change to "recovery" to restore via git (the fix)
+  # Valid rendering states: initdb, recovery, existing.
+  # `existing` omits spec.bootstrap after a successful recovery.
+  mode: initdb
   recovery:
-    backupName: ""     # set when mode=recovery, e.g. "demo-pg-recovery"
+    # Name of the externalClusters entry from which CNPG recovers.
+    source: original
 
 backup:
   destinationPath: s3://pg-backups/

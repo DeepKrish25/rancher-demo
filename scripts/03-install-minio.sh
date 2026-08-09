@@ -16,7 +16,7 @@ helm upgrade --install minio minio/minio -n minio \
   --set rootPassword=minioadmin123
 
 echo "Waiting for MinIO to be ready..."
-kubectl -n minio rollout status deployment/minio --timeout=180s
+kubectl -n minio rollout status statefulset/minio --timeout=180s
 
 echo "Creating pg-backups bucket..."
 kubectl apply -f "$(dirname "$0")/../manual/minio-bucket-job.yaml"

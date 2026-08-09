@@ -1,155 +1,113 @@
-# CNPG + GitOps Drift Demo (minikube + ArgoCD)
+# CNPG GitOps recovery-state demo (K3s + ArgoCD)
 
-Reproduces the Rancher Fleet drift bug (`spec.bootstrap` mismatch after a
-CNPG Postgres recovery) using ArgoCD as a stand-in — same diffing
-mechanism, same fix (`ignoreDifferences` ≈ Fleet's `comparePatches`).
+This repository prepares a disposable Ubuntu EC2/K3s environment for a
+CloudNativePG (CNPG) GitOps recovery experiment. It intentionally keeps one
+ArgoCD `Application` (`demo-pg`) and one CNPG `Cluster` (`demo-pg`).
 
-## 0. Prerequisites (run on your Ubuntu machine, not in any sandbox)
+The chart supports three committed Helm rendering states:
 
-```bash
-# Docker (minikube driver)
-sudo apt-get update && sudo apt-get install -y docker.io
-sudo usermod -aG docker $USER && newgrp docker
+| `bootstrap.mode` | Rendered CNPG state |
+| --- | --- |
+| `initdb` | `spec.bootstrap.initdb` |
+| `recovery` | `spec.bootstrap.recovery` |
+| `existing` | no `spec.bootstrap` |
 
-# kubectl
-curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+`existing` is a Helm rendering state for a Cluster that has already
+bootstrapped. It is not a CNPG bootstrap method.
 
-# minikube
-curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-sudo install minikube-linux-amd64 /usr/local/bin/minikube
+## EC2 prerequisites
 
-# helm
-curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-```
-
-**Resource note for your hardware (8GB RAM, i5-8250U):** close browsers/IDEs
-before starting. The scripts request 4.5GB for the minikube VM, leaving
-~3GB for the host. If `minikube start` fails or things get sluggish, spin
-up an `t3.large` (2 vCPU / 8GB) or `t3.xlarge` (4 vCPU / 16GB) EC2 instance
-running Ubuntu 24.04 instead and run the exact same steps there — nothing
-here is laptop-specific.
-
-## 1. Push this repo to your own git provider
+Use a fresh Ubuntu 22.04 or 24.04 EC2 instance with enough room for K3s,
+MinIO, ArgoCD, and PostgreSQL (at least 2 vCPU, 4 GiB RAM, and 20 GiB disk;
+8 GiB RAM is more comfortable). Allow SSH from your administration address.
+Run these commands as the Ubuntu login user:
 
 ```bash
-cd cnpg-gitops-drift-demo
-git init && git add . && git commit -m "cnpg gitops drift demo"
-git remote add origin https://github.com/<you>/cnpg-gitops-drift-demo.git
-git push -u origin main
-```
-
-Then edit `argocd/application.yaml` and set `spec.source.repoURL` to that
-URL.
-
-## 2. Build the environment
-
-```bash
+sudo apt-get update
+sudo apt-get install -y git curl ca-certificates
+git clone https://github.com/DeepKrish25/rancher-demo.git
+cd rancher-demo
 chmod +x scripts/*.sh
-./scripts/01-start-cluster.sh      # minikube up
-./scripts/02-install-cnpg.sh       # CNPG operator
-./scripts/03-install-minio.sh      # stand-in for your GCP bucket
+
+./scripts/01-start-cluster-ec2-k3s.sh
+./scripts/02-install-cnpg.sh
+./scripts/03-install-minio.sh
 ./scripts/05-create-minio-secret.sh
-./scripts/04-install-argocd.sh     # ArgoCD, trimmed for low RAM
+./scripts/04-install-argocd.sh
 ```
 
-Note the admin password printed at the end of step 4.
+The EC2 script is the repository's existing K3s bootstrap; do not run the
+Minikube script (`01-start-cluster.sh`) on EC2. The K3s script installs
+`kubectl` and Helm when they are not already available.
 
-## 3. Deploy the app via GitOps (this is your "app bundle")
+## Initial GitOps deployment
+
+The committed `charts/pg/values.yaml` defaults to `bootstrap.mode: initdb`.
+After the setup scripts complete, deploy the one ArgoCD application:
 
 ```bash
 kubectl apply -f argocd/application.yaml
 kubectl get application demo-pg -n argocd -w
 ```
 
-Wait until `SYNC STATUS = Synced` and `HEALTH STATUS = Healthy`. Confirm
-the Postgres pod is up:
+When it reports `Synced` and `Healthy`, confirm the initial cluster:
 
 ```bash
+kubectl get cluster.postgresql.cnpg.io demo-pg -n default
 kubectl get pods -n default -l cnpg.io/cluster=demo-pg
 ```
 
-This is your baseline — equivalent to `infra-apps-dev-4956` freshly
-deployed via `bootstrap.initdb`.
+## Changing Git state for the manual recovery workflow
 
-## 4. Reproduce the drift bug
+Do not run the recovery automatically. Perform the deletion, restore, and
+inspection manually. For the Git-driven state changes, update the same chart
+values file (or a values file referenced by the same Application), commit and
+push the change, then let the existing `demo-pg` Application reconcile it.
+Do not create a second Application for this Cluster.
 
-```bash
-./scripts/06-reproduce-drift.sh
-```
+The expected manual checkpoints are:
 
-This walks through, pausing for you to inspect at each stage:
-1. Confirm live state == git state (`initdb`)
-2. Pause the bundle (disable ArgoCD auto-sync)
-3. Delete the CNPG Cluster
-4. Apply the manual recovery YAML (`manual/manual-restore-cluster.yaml`,
-   using `bootstrap.recovery`) and wait for it to go healthy
-5. Unpause the bundle (re-enable auto-sync)
-6. Show the resulting `OutOfSync` / drift status
+1. Baseline: Git `initdb`, live `initdb`.
+2. Manual recovery drift reproduction: Git `initdb`, live `recovery` — drift
+   is expected.
+3. Git-driven recovery: Git `recovery`, live `recovery` — no drift expected.
+4. Post-recovery: Git `existing`, live has no bootstrap field — no drift
+   expected.
 
-At this point `kubectl get application demo-pg -n argocd -o yaml` will
-show `spec.bootstrap` as a live diff — reproducing exactly what you're
-seeing in Rancher, because git still says `initdb` while the live Cluster
-object is running under `recovery`.
+The recovery source is configurable at `bootstrap.recovery.source`; it must
+match the rendered `externalClusters` entry (the default is `original`).
 
-## 5. Apply the fix
+Useful rendering checks before committing a state:
 
 ```bash
-./scripts/07-apply-fix.sh
+helm lint charts/pg
+helm template demo-pg charts/pg --set bootstrap.mode=initdb
+helm template demo-pg charts/pg --set bootstrap.mode=recovery
+helm template demo-pg charts/pg --set bootstrap.mode=existing
 ```
 
-This tells you to uncomment `ignoreDifferences` in
-`argocd/application.yaml`, commit/push it, then re-applies and verifies
-the app goes back to `Synced` / `Healthy` — permanently, regardless of
-which bootstrap mode is live. This is the direct equivalent of adding
-`diff.comparePatches` to `fleet.yaml` for the `Cluster` CR.
+## Existing drift-workaround demonstration
 
-## 6. (Optional) Demonstrate the git-driven restore
+The manual drift reproduction remains available as
+`scripts/06-reproduce-drift.sh`, with its manual restore manifest in
+`manual/manual-restore-cluster.yaml`. It intentionally demonstrates the
+undesired state where Git says `initdb` but the live Cluster says `recovery`.
 
-Instead of the manual `kubectl apply` in step 4, you can restore purely
-through git — proving out the architecture recommended for your real
-Rancher setup:
+`scripts/07-apply-fix.sh` and the commented `ignoreDifferences` block in
+`argocd/application.yaml` remain as a comparison to the historical
+`ignoreDifferences`/Fleet `comparePatches` workaround. They are disabled by
+default and are not the recovery solution used by this chart.
 
-```bash
-# Point the SAME Application at the recovery values for this one cluster
-# (In Fleet this is targetCustomizations; in ArgoCD it's a values file
-# override or an ApplicationSet generator per-cluster — NOT a second
-# Application/bundle targeting the same object.)
-kubectl delete cluster.postgresql.cnpg.io demo-pg -n default
+## Repository layout
 
-# simulate the "per-cluster override committed to git" by pointing
-# helm at the recovery values file:
-helm template charts/pg -f charts/pg/values-recovery-example.yaml | kubectl apply -f -
-
-kubectl wait --for=condition=Ready pod -l cnpg.io/cluster=demo-pg -n default --timeout=180s
-kubectl get application demo-pg -n argocd -o jsonpath='{.status.sync.status}{"\n"}'
+```text
+scripts/01-start-cluster-ec2-k3s.sh  Existing EC2 K3s bootstrap
+scripts/02-install-cnpg.sh           CNPG operator installation
+scripts/03-install-minio.sh          MinIO and backup bucket installation
+scripts/04-install-argocd.sh         ArgoCD installation
+scripts/05-create-minio-secret.sh    Object-store credentials
+scripts/06-reproduce-drift.sh        Existing manual drift reproduction
+scripts/07-apply-fix.sh              Existing workaround comparison
+charts/pg/                           CNPG Cluster and ScheduledBackup chart
+argocd/application.yaml              The single GitOps Application
 ```
-
-With `ignoreDifferences` already in place, this stays `Synced` even
-though the live object now runs `recovery` and git's default
-`values.yaml` still says `initdb` — because there's exactly one
-bundle owning the object, and the field that flaps is explicitly ignored.
-
-## Files
-
-```
-charts/pg/                        Helm chart (mirrors your real cluster.yaml)
-  templates/cluster.yaml          CNPG Cluster — the bootstrap conditional lives here
-  templates/scheduledbackup.yaml  Backups resume automatically post-restore
-  values.yaml                     Default committed state (initdb)
-  values-recovery-example.yaml    Per-cluster override example (recovery)
-argocd/application.yaml           The "app bundle" — ignoreDifferences fix lives here
-manual/manual-restore-cluster.yaml  Mimics your CURRENT manual restore step
-manual/minio-bucket-job.yaml      Creates the pg-backups bucket (stand-in for GCP)
-scripts/01-07-*.sh                Numbered, run-in-order setup + demo scripts
-```
-
-## Mapping back to Fleet/Rancher
-
-| This demo (ArgoCD)                          | Your real setup (Fleet/Rancher)          |
-|----------------------------------------------|-------------------------------------------|
-| `Application`                                 | Fleet `Bundle` / `GitRepo`               |
-| `spec.syncPolicy.automated` on/off             | Pause/unpause bundle                      |
-| `spec.ignoreDifferences[].jsonPointers`        | `fleet.yaml` `diff.comparePatches[].jsonPointers` |
-| MinIO                                          | GCS bucket                                |
-| Second `Application` targeting same object = conflict | Second `Bundle` targeting same cluster/object = conflict (your open question) |

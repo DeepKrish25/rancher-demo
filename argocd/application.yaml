@@ -22,8 +22,12 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-    ignoreDifferences:
-     - group: postgresql.cnpg.io
-       kind: Cluster
-       jsonPointers:
-         - /spec/bootstrap
+  # Demonstration only: leave this disabled for the manual-drift scenario.
+  # It is deliberately not part of the Git-driven recovery architecture.
+  # To reproduce the old ignoreDifferences/comparePatches workaround, use
+  # scripts/07-apply-fix.sh and uncomment this block at spec level:
+  # ignoreDifferences:
+  #   - group: postgresql.cnpg.io
+  #     kind: Cluster
+  #       jsonPointers:
+  #         - /spec/bootstrap
