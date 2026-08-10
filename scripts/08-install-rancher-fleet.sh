@@ -13,13 +13,15 @@ set -euo pipefail
 #   K3s:    v1.35.6+k3s1
 #   Rancher: 2.14.3
 #
-# Example:
+# Example (hostname is auto-detected and the bootstrap password is prompted for
+# when they are not supplied):
+#
+#   ./scripts/08-install-rancher-fleet.sh
+#
+# Optional non-interactive usage:
 #
 #   export RANCHER_HOSTNAME=203.0.113.10.sslip.io
-#   read -r -s -p 'Rancher bootstrap password: ' RANCHER_BOOTSTRAP_PASSWORD
-#   echo
-#   export RANCHER_BOOTSTRAP_PASSWORD
-#
+#   export RANCHER_BOOTSTRAP_PASSWORD='your-bootstrap-password'
 #   ./scripts/08-install-rancher-fleet.sh
 
 readonly CERT_MANAGER_NAMESPACE="cert-manager"
@@ -36,13 +38,30 @@ require_command() {
 
 require_command kubectl
 require_command helm
+require_command curl
 
 kubectl cluster-info >/dev/null
 kubectl get nodes >/dev/null
 helm version --short >/dev/null
 
+if [[ -z "${RANCHER_HOSTNAME:-}" ]]; then
+  public_ip="$(curl -fsS https://checkip.amazonaws.com 2>/dev/null || true)"
+
+  if [[ -n "$public_ip" ]]; then
+    RANCHER_HOSTNAME="${public_ip}.sslip.io"
+  else
+    read -r -p "Enter RANCHER_HOSTNAME: " RANCHER_HOSTNAME
+  fi
+fi
+
 : "${RANCHER_HOSTNAME:?Set RANCHER_HOSTNAME (for example: 203.0.113.10.sslip.io)}"
-: "${RANCHER_BOOTSTRAP_PASSWORD:?Set RANCHER_BOOTSTRAP_PASSWORD before running this script}"
+
+if [[ -z "${RANCHER_BOOTSTRAP_PASSWORD:-}" ]]; then
+  read -r -s -p "Rancher bootstrap password: " RANCHER_BOOTSTRAP_PASSWORD
+  echo
+fi
+
+: "${RANCHER_BOOTSTRAP_PASSWORD:?RANCHER_BOOTSTRAP_PASSWORD must not be empty}"
 
 if [[ "$RANCHER_HOSTNAME" == *://* || "$RANCHER_HOSTNAME" == */* ]]; then
   echo "ERROR: RANCHER_HOSTNAME must be a DNS hostname only (no scheme or path)." >&2
