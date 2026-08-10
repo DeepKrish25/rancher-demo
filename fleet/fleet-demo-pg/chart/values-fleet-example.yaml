@@ -8,9 +8,7 @@ instances: 1
 storageSize: 1Gi
 
 bootstrap:
-  mode: recovery
-  recovery:
-    source: original
+  mode: existing
 
 backup:
   destinationPath: s3://pg-backups/
